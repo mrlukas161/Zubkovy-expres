@@ -1,0 +1,1134 @@
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Zúbkový expres</title>
+<meta name="theme-color" content="#13233f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@400;700;800&display=swap">
+<style>
+/* Layout: celoobrazovková scéna (canvas) + prekryvné vrstvy; menu = cestovné lístky na tabuli stanice */
+:root{
+  --navy:#13233f; --navy2:#1c3157; --cream:#f6e7c8; --paper:#fbf3e2; --ink:#2a2118;
+  --brass:#d9a441; --signal:#e4572e; --ok:#3fae6a;
+  --display:"Baloo 2","Trebuchet MS",system-ui,sans-serif;
+  --body:"Nunito","Segoe UI",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--navy);color:var(--cream);font-family:var(--body);overflow:hidden;
+  -webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--brass);outline-offset:2px}
+.screen{position:fixed;inset:0;display:flex;flex-direction:column}
+[hidden]{display:none!important}
+
+/* ===== MENU ===== */
+#menu{overflow-y:auto;padding:max(18px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
+  background:
+   radial-gradient(1200px 500px at 50% -10%, #2b4a7d 0%, transparent 60%),
+   repeating-linear-gradient(90deg, rgba(255,255,255,.025) 0 2px, transparent 2px 46px),
+   var(--navy)}
+.board{max-width:980px;margin:0 auto;width:100%;display:flex;flex-direction:column;gap:22px}
+.brand{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.brand canvas{width:120px;height:64px;flex:none}
+.brand h1{font-family:var(--display);font-weight:800;font-size:clamp(34px,6vw,58px);line-height:.95;margin:0;letter-spacing:.5px;color:var(--cream);text-wrap:balance}
+.brand p{margin:4px 0 0;color:#b9c6dd;font-size:16px}
+.part-chip{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);
+  padding:6px 12px;border-radius:999px;font-weight:700;font-size:14px;color:var(--cream)}
+.tickets{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}
+.ticket{position:relative;text-align:left;border:0;padding:0;background:none;border-radius:14px;
+  filter:drop-shadow(0 10px 18px rgba(0,0,0,.35));transition:transform .15s ease}
+.ticket:hover{transform:translateY(-3px) rotate(-.4deg)}
+.ticket:active{transform:scale(.98)}
+.ticket .paper{background:var(--paper);color:var(--ink);border-radius:14px;overflow:hidden;display:grid;grid-template-columns:1fr 92px;
+  -webkit-mask: radial-gradient(circle 11px at calc(100% - 92px) 0,#0000 98%,#000) top/100% 51% no-repeat,
+               radial-gradient(circle 11px at calc(100% - 92px) 100%,#0000 98%,#000) bottom/100% 51% no-repeat;
+          mask: radial-gradient(circle 11px at calc(100% - 92px) 0,#0000 98%,#000) top/100% 51% no-repeat,
+               radial-gradient(circle 11px at calc(100% - 92px) 100%,#0000 98%,#000) bottom/100% 51% no-repeat}
+.ticket .main{padding:14px 16px 14px 18px;border-left:10px solid var(--kid);min-width:0}
+.ticket .kind{font-size:11px;letter-spacing:1.6px;text-transform:uppercase;font-weight:800;color:#8a7a62}
+.ticket .name{font-family:var(--display);font-weight:800;font-size:34px;line-height:1.05;margin:2px 0 6px;color:var(--ink)}
+.ticket .route{font-size:13px;color:#5f513f;font-weight:700}
+.week{display:flex;gap:6px;margin-top:10px}
+.day{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;color:#8a7a62;font-weight:800}
+.day i{width:14px;height:14px;border-radius:50%;border:2px solid #d8c9a9;display:block;position:relative;overflow:hidden}
+.day i::before,.day i::after{content:"";position:absolute;top:0;bottom:0;width:50%}
+.day i::before{left:0} .day i::after{right:0}
+.day i.r::before{background:var(--kid)} .day i.v::after{background:var(--kid)}
+.ticket .stub{border-left:2px dashed #d8c9a9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:10px 6px;
+  background:repeating-linear-gradient(135deg, rgba(0,0,0,.025) 0 6px, transparent 6px 12px)}
+.stub b{font-family:var(--display);font-size:30px;line-height:1;color:var(--ink)}
+.stub small{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#8a7a62;font-weight:800;text-align:center}
+.stub .go{margin-top:6px;background:var(--kid);color:#fff;border-radius:999px;padding:4px 12px;font-weight:800;font-size:13px}
+.menu-foot{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.btn{border:0;border-radius:12px;padding:12px 18px;font-weight:800;font-size:16px;background:var(--brass);color:#2a1c05;box-shadow:0 3px 0 #9c7224}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 #9c7224}
+.btn.ghost{background:rgba(255,255,255,.08);color:var(--cream);box-shadow:none;border:1px solid rgba(255,255,255,.18)}
+.note{color:#9fb0cc;font-size:14px;max-width:60ch;line-height:1.45}
+
+/* ===== GAME ===== */
+#game{background:#000}
+#scene{position:absolute;inset:0;width:100%;height:100%;display:block}
+.hud{position:absolute;left:0;right:0;top:0;padding:max(10px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) 0 max(12px,env(safe-area-inset-left));
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:start;pointer-events:none}
+.zone{display:flex;gap:12px;align-items:center;background:rgba(14,24,44,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:10px 14px 10px 10px;max-width:520px;min-width:0}
+.zone svg{width:66px;height:66px;flex:none}
+.zone .t{min-width:0}
+.zone .k{font-size:11px;letter-spacing:1.6px;text-transform:uppercase;font-weight:800;color:var(--brass)}
+.zone h2{font-family:var(--display);font-size:clamp(20px,3.4vw,28px);margin:0;line-height:1.05;color:#fff}
+.zone p{margin:3px 0 0;font-size:clamp(13px,1.9vw,15px);color:#d6deea;line-height:1.3}
+.gauges{display:flex;gap:10px;align-items:center;background:rgba(14,24,44,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:8px 12px}
+#mano{width:86px;height:86px}
+.count{text-align:center;min-width:64px}
+.count b{display:block;font-family:var(--display);font-size:34px;line-height:1;color:#fff;font-variant-numeric:tabular-nums}
+.count small{font-size:11px;color:#c3cde0;font-weight:800;letter-spacing:1px;text-transform:uppercase}
+.route-bar{position:absolute;left:50%;transform:translateX(-50%);bottom:max(14px,env(safe-area-inset-bottom));width:min(560px,calc(100% - 150px));height:34px;pointer-events:none}
+.route-bar .line{position:absolute;left:8px;right:8px;top:15px;height:4px;border-radius:2px;background:rgba(255,255,255,.3)}
+.route-bar .fill{position:absolute;left:8px;top:15px;height:4px;border-radius:2px;background:var(--brass);width:0}
+.route-bar .st{position:absolute;top:9px;width:16px;height:16px;margin-left:-8px;border-radius:50%;background:#1b2b4a;border:3px solid rgba(255,255,255,.6)}
+.route-bar .st.done{background:var(--brass);border-color:#fff}
+.route-bar .mk{position:absolute;top:0;width:24px;height:12px;margin-left:-12px;border-radius:4px 8px 2px 2px;background:var(--kid,#e4572e);box-shadow:0 0 0 2px #fff}
+@media (max-width:620px){
+  .hud{grid-template-columns:1fr}
+  .zone{max-width:none}
+  .gauges{justify-self:end;padding:6px 10px}
+  #mano{width:68px;height:68px}
+  .count b{font-size:28px}
+  .route-bar{width:calc(100% - 40px);bottom:calc(max(10px,env(safe-area-inset-bottom)) + 60px)}
+  .nudge{bottom:calc(max(14px,env(safe-area-inset-bottom)) + 104px)}
+}
+.ctrl{position:absolute;bottom:max(10px,env(safe-area-inset-bottom));display:flex;gap:8px}
+.ctrl.l{left:max(12px,env(safe-area-inset-left))} .ctrl.r{right:max(12px,env(safe-area-inset-right))}
+.round{width:48px;height:48px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(14,24,44,.72);display:grid;place-items:center;font-weight:800}
+.round svg{width:22px;height:22px}
+.mic-ind{display:flex;align-items:flex-end;gap:3px;height:48px;padding:10px 12px;border-radius:24px;background:rgba(14,24,44,.72);border:1px solid rgba(255,255,255,.25)}
+.mic-ind span{width:5px;border-radius:2px;background:rgba(255,255,255,.25);height:6px;transition:height .06s}
+.mic-ind span.on{background:#7be09b}
+.banner{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;width:min(92vw,620px)}
+.banner .card{display:inline-block;background:var(--paper);color:var(--ink);border-radius:16px;padding:14px 26px 16px;box-shadow:0 18px 40px rgba(0,0,0,.4);border-top:8px solid var(--kid,#e4572e)}
+.banner .k{font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:800;color:#8a7a62}
+.banner h3{font-family:var(--display);font-size:clamp(28px,6vw,48px);margin:0;line-height:1.05}
+.banner p{margin:4px 0 0;font-weight:700;color:#5f513f}
+.banner.pop .card{animation:pop .45s cubic-bezier(.2,1.6,.4,1)}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+.nudge{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(max(14px,env(safe-area-inset-bottom)) + 52px);background:rgba(228,87,46,.92);color:#fff;
+  font-weight:800;padding:8px 16px;border-radius:999px;font-size:16px;pointer-events:none;white-space:nowrap}
+.pause-ov{position:absolute;inset:0;background:rgba(10,18,34,.7);display:grid;place-items:center;padding:16px}
+.pause-ov .box{background:var(--navy2);border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:22px;display:flex;flex-direction:column;gap:12px;min-width:min(320px,90vw);text-align:center}
+.pause-ov h3{font-family:var(--display);font-size:32px;margin:0}
+
+/* ===== FINISH ===== */
+#finish{background:rgba(10,18,34,.55);display:grid;place-items:center;padding:16px;overflow-y:auto}
+#confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+.final{position:relative;background:var(--paper);color:var(--ink);border-radius:18px;width:min(560px,100%);box-shadow:0 30px 60px rgba(0,0,0,.45);overflow:hidden;animation:pop .6s cubic-bezier(.2,1.5,.4,1)}
+.final .top{background:var(--kid);color:#fff;padding:16px 22px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.final .top b{font-family:var(--display);font-size:22px;letter-spacing:1px}
+.final .top span{font-weight:800;font-size:13px;opacity:.9}
+.final .body{padding:18px 22px 6px;display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center}
+.final h2{font-family:var(--display);font-size:clamp(30px,7vw,46px);line-height:1;margin:0}
+.final .rows{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin-top:10px;font-size:15px}
+.final .rows dt{color:#8a7a62;font-weight:800;font-size:12px;letter-spacing:1px;text-transform:uppercase;align-self:center}
+.final .rows dd{margin:0;font-weight:800;font-variant-numeric:tabular-nums}
+.stamp{width:118px;height:118px;border-radius:50%;border:5px double var(--signal);color:var(--signal);display:grid;place-items:center;text-align:center;
+  transform:rotate(-14deg);font-family:var(--display);font-weight:800;line-height:1;font-size:15px;opacity:.9;animation:stamp .5s .45s both cubic-bezier(.3,1.8,.5,1)}
+.stamp big{display:block;font-size:30px}
+@keyframes stamp{from{transform:rotate(-14deg) scale(2.2);opacity:0}to{transform:rotate(-14deg) scale(1);opacity:.9}}
+.final .perf{border-top:2px dashed #d8c9a9;margin:14px 0 0;padding:14px 22px 18px;display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.final .btn.ghost{color:var(--ink);border-color:#d8c9a9;background:transparent}
+
+/* ===== SETTINGS ===== */
+#settings{overflow-y:auto;background:var(--navy);padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+.set{max-width:820px;margin:0 auto;width:100%;display:flex;flex-direction:column;gap:18px}
+.set header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.set h2{font-family:var(--display);font-size:34px;margin:0}
+.panel{background:var(--navy2);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.panel h3{margin:0;font-family:var(--display);font-size:22px}
+.panel .why{margin:0;color:#a9b8d2;font-size:14px;line-height:1.45;max-width:70ch}
+.prof{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1.4fr) minmax(0,1.6fr);gap:12px;align-items:end;padding:12px;border-radius:12px;background:rgba(0,0,0,.18);border-left:6px solid var(--kid)}
+@media (max-width:640px){.prof{grid-template-columns:1fr}}
+label.f{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:#a9b8d2;min-width:0}
+input[type=text],select{width:100%;background:#0f1c33;border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:10px;padding:10px;font:inherit;font-size:16px;text-transform:none;letter-spacing:0}
+input[type=range]{width:100%;accent-color:var(--brass)}
+.rangev{color:#fff;font-size:15px;letter-spacing:0;text-transform:none}
+.swatches{display:flex;gap:6px}
+.swatches button{width:28px;height:28px;border-radius:50%;border:2px solid transparent}
+.swatches button[aria-pressed="true"]{border-color:#fff;box-shadow:0 0 0 2px var(--navy2) inset}
+.test{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center}
+@media (max-width:520px){.test{grid-template-columns:1fr}}
+.meter{height:22px;border-radius:11px;background:#0f1c33;position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.15)}
+.meter i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#3fae6a,#d9a441 70%,#e4572e);width:0}
+.meter u{position:absolute;top:-2px;bottom:-2px;width:3px;background:#fff;text-decoration:none}
+.tcount{font-family:var(--display);font-size:30px;font-variant-numeric:tabular-nums;min-width:90px;text-align:right}
+.tcount.flash{color:#7be09b}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.danger{background:#5a1e1e;color:#ffd9d0;box-shadow:0 3px 0 #2e0d0d}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- ============ MENU ============ -->
+<section id="menu" class="screen">
+  <div class="board">
+    <div class="brand">
+      <canvas id="logo" width="240" height="128" aria-hidden="true"></canvas>
+      <div>
+        <h1>Zúbkový expres</h1>
+        <p>Vláčik ide, len keď počuje kefku. Štyri úseky, štyri stanice, cieľ Čisté Zúbkovo.</p>
+      </div>
+    </div>
+    <div><span class="part-chip" id="partChip">Ranný spoj</span></div>
+    <div class="tickets" id="tickets"></div>
+    <div class="menu-foot">
+      <p class="note" id="menuNote">Pred prvou jazdou skús v Nastaveniach test mikrofónu: pošúchaj kefkou blízko telefónu a pozri, či počíta. Vodu pri umývaní zatvor, šumenie vody vláčik zmätie.</p>
+      <button class="btn ghost" id="openSettings">Nastavenia a test mikrofónu</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ GAME ============ -->
+<section id="game" class="screen" hidden>
+  <canvas id="scene"></canvas>
+  <div class="hud">
+    <div class="zone">
+      <svg id="mouth" viewBox="0 0 100 100" aria-hidden="true">
+        <text x="50" y="52" text-anchor="middle" font-size="9" font-weight="800" fill="#8fa3c4" font-family="Nunito,sans-serif">jazyk</text>
+        <g id="aU"></g><g id="aL"></g>
+        <path id="oU" d="M8 44 C8 -4, 92 -4, 92 44" fill="none" stroke="#ffd34d" stroke-width="4" stroke-linecap="round" opacity="0"/>
+        <path id="oL" d="M8 58 C8 106, 92 106, 92 58" fill="none" stroke="#ffd34d" stroke-width="4" stroke-linecap="round" opacity="0"/>
+        <path id="iU" d="M28 44 C28 18, 72 18, 72 44" fill="none" stroke="#ffd34d" stroke-width="4" stroke-linecap="round" opacity="0"/>
+        <path id="iL" d="M28 58 C28 84, 72 84, 72 58" fill="none" stroke="#ffd34d" stroke-width="4" stroke-linecap="round" opacity="0"/>
+      </svg>
+      <div class="t">
+        <div class="k" id="zoneK">Úsek 1 z 4</div>
+        <h2 id="zoneT">Žuvacie plôšky</h2>
+        <p id="zoneP">Hore aj dole, kefkou dopredu a dozadu.</p>
+      </div>
+    </div>
+    <div class="gauges">
+      <canvas id="mano" width="172" height="172" aria-label="Tempo šúchania"></canvas>
+      <div class="count"><b id="cnt">0</b><small id="cntL">z 60</small></div>
+    </div>
+  </div>
+  <div class="route-bar" id="routeBar"><div class="line"></div><div class="fill" id="routeFill"></div></div>
+  <div class="ctrl l"><div class="mic-ind" id="micInd" title="Čo počuje mikrofón"></div></div>
+  <div class="ctrl r">
+    <button class="round" id="muteBtn" aria-label="Zvuk"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 9h4l5-4v14l-5-4H4z"/><path id="muteWave" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg></button>
+    <button class="round" id="pauseBtn" aria-label="Pauza"><svg viewBox="0 0 24 24" fill="#fff"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
+  </div>
+  <div class="banner" id="banner" hidden><div class="card"><div class="k" id="banK"></div><h3 id="banT"></h3><p id="banP"></p></div></div>
+  <div class="nudge" id="nudge" hidden>Šúchaj, nech vláčik ide!</div>
+  <div class="pause-ov" id="pauseOv" hidden>
+    <div class="box">
+      <h3>Vláčik stojí</h3>
+      <button class="btn" id="resumeBtn">Pokračovať v jazde</button>
+      <button class="btn ghost" id="quitBtn">Ukončiť a späť na stanicu</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FINISH ============ -->
+<section id="finish" class="screen" hidden>
+  <canvas id="confetti"></canvas>
+  <div class="final">
+    <div class="top"><b>ZÚBKOVÝ EXPRES</b><span id="finDate"></span></div>
+    <div class="body">
+      <div>
+        <h2 id="finT">Cieľ! Zúbky sú čisté.</h2>
+        <dl class="rows">
+          <dt>Cestujúci</dt><dd id="finName"></dd>
+          <dt>Trasa</dt><dd>Kefkovo → Čisté Zúbkovo</dd>
+          <dt>Šúchnutí</dt><dd id="finStrokes"></dd>
+          <dt>Čas jazdy</dt><dd id="finTime"></dd>
+          <dt>Lístkov spolu</dt><dd id="finTotal"></dd>
+        </dl>
+      </div>
+      <div class="stamp" id="stamp"><div><big id="stampPart">RÁNO</big>ČISTÉ<br>ZÚBKY</div></div>
+    </div>
+    <div class="perf">
+      <button class="btn ghost" id="againBtn">Ďalší cestujúci</button>
+      <button class="btn" id="homeBtn">Hotovo</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SETTINGS ============ -->
+<section id="settings" class="screen" hidden>
+  <div class="set">
+    <header><h2>Nastavenia</h2><button class="btn" id="closeSettings">Späť</button></header>
+
+    <div class="panel">
+      <h3>Test mikrofónu</h3>
+      <p class="why">Mikrofón meria šum vo vysokých tónoch, aký robí kefka na zuboch, a každé šúchnutie spozná ako krátke zosilnenie šumu. Telefón polož do 1 metra od dieťaťa a zatvor vodu. Ak počíta málo, posuň citlivosť doprava; ak počíta aj rozprávanie, doľava. Biela čiarka na ukazovateli je hranica, odkiaľ sa šúchnutie ráta.</p>
+      <div class="test">
+        <button class="btn" id="testBtn">Zapnúť test</button>
+        <div class="meter"><i id="tMeter"></i><u id="tThr"></u></div>
+        <div class="tcount" id="tCount">0</div>
+      </div>
+      <label class="f">Citlivosť mikrofónu <span class="rangev" id="sensV"></span>
+        <input type="range" id="sens" min="1" max="10" step="1"></label>
+    </div>
+
+    <div class="panel">
+      <h3>Cestujúci</h3>
+      <p class="why">Každý má vlastný vláčik vo svojej farbe. Počet šúchnutí na úsek určuje dĺžku jazdy: pri bežnom tempe asi 2 šúchnutia za sekundu je 60 na úsek zhruba pol minúty, teda 2 minuty spolu, čo odporúčajú zubári. „Len čas" je pre malých, ktorým zúbky umýva rodič: vláčik ide sám 30 sekúnd na úsek. „Elektrická kefka" bzučí rovnomerne a nemá jednotlivé šúchnutia, preto vláčik ide, kým počuje bzučanie.</p>
+      <div id="profList" style="display:flex;flex-direction:column;gap:12px"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Zvuk a história</h3>
+      <div class="row">
+        <label class="row" style="gap:8px;font-weight:700"><input type="checkbox" id="sndOn" style="width:20px;height:20px"> Píšťalka a zvuky vláčika</label>
+      </div>
+      <p class="why">Píšťalka hrá len na staniciach. Počas nej mikrofón na chvíľu nepočúva, aby si zvuk vláčika nepomýlil so šúchaním.</p>
+      <div class="row">
+        <button class="btn danger" id="clrBtn">Vymazať históriu jázd</button>
+        <button class="btn danger" id="clrYes" hidden>Áno, vymazať všetko</button>
+        <button class="btn ghost" id="clrNo" hidden>Nie</button>
+        <span id="clrMsg" class="note"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+"use strict";
+/* ================= Úložisko ================= */
+const STORE_KEY = "zubkovyExpres.v1";
+const COLORS = ["#2f6fdb","#e0492f","#2f9e5a","#8a4fd6","#e09a1f","#d6407f"];
+const DEFAULTS = {
+  sens: 6, sound: true,
+  profiles: [
+    {id:"tadeas",  name:"Tadeáš",  color:"#2f6fdb", mode:"mic",   target:60},
+    {id:"timotej", name:"Timotej", color:"#e0492f", mode:"mic",   target:45},
+    {id:"simon",   name:"Šimon",   color:"#2f9e5a", mode:"timer", target:40}
+  ],
+  history: []
+};
+let S;
+function load(){
+  try{ const raw = localStorage.getItem(STORE_KEY); S = raw ? JSON.parse(raw) : null; }catch(e){ S = null; }
+  if(!S || !Array.isArray(S.profiles)) S = JSON.parse(JSON.stringify(DEFAULTS));
+  if(!Array.isArray(S.history)) S.history = [];
+}
+function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){} }
+load();
+
+const pad = n => String(n).padStart(2,"0");
+const dayKey = d => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const partNow = () => new Date().getHours() < 14 ? "rano" : "vecer";
+const $ = id => document.getElementById(id);
+
+/* ================= Zvuk + mikrofón ================= */
+let AC = null;
+function audio(){ if(!AC){ AC = new (window.AudioContext||window.webkitAudioContext)(); } if(AC.state==="suspended") AC.resume(); return AC; }
+
+const Mic = {
+  ok:false, stream:null, an:null, buf:null, hiA:0, hiB:0,
+  fast:0, slow:0, floor:0, armed:true, last:0, lastOnset:0, gateUntil:0,
+  active:false, activeSince:0, db:0, onStroke:null, synthAcc:0,
+  async start(){
+    if(this.ok) return true;
+    try{
+      const ctx = audio();
+      this.stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+      const src = ctx.createMediaStreamSource(this.stream);
+      this.an = ctx.createAnalyser(); this.an.fftSize = 2048; this.an.smoothingTimeConstant = 0;
+      src.connect(this.an);
+      this.buf = new Float32Array(this.an.frequencyBinCount);
+      const hz = ctx.sampleRate / this.an.fftSize;
+      this.hiA = Math.round(2500/hz); this.hiB = Math.min(this.buf.length-1, Math.round(9000/hz));
+      this.floor = 0; this.ok = true; return true;
+    }catch(e){ console.warn("mikrofón", e); this.ok = false; return false; }
+  },
+  thr(){ return 2 + (10 - S.sens) * 1.3; },           // pomer energie nad šumom pozadia
+  tick(now, dt){
+    if(!this.ok) return;
+    this.an.getFloatFrequencyData(this.buf);
+    let p = 0; for(let i=this.hiA;i<this.hiB;i++) p += Math.pow(10, this.buf[i]/10);
+    p = p/(this.hiB-this.hiA) + 1e-13;
+    if(!this.floor) this.floor = p;
+    this.fast += (p - this.fast) * 0.45;
+    this.slow += (p - this.slow) * 0.06;
+    if(this.fast < this.floor) this.floor += (this.fast - this.floor) * 0.25;
+    else if(!this.active) this.floor += (this.fast - this.floor) * 0.002;
+    const T = this.thr();
+    this.db = 10*Math.log10(this.fast/this.floor);
+    const gated = now < this.gateUntil;
+    const wasActive = this.active;
+    this.active = !gated && this.slow > this.floor * T * 0.6;
+    if(this.active && !wasActive) this.activeSince = now;
+    // jedno šúchnutie = krátky nárast šumu nad pozadie aj nad vlastný priemer
+    if(!gated && this.armed && this.fast > this.floor*T && this.fast > this.slow*1.25 && now - this.last > 190){
+      this.armed = false; this.last = now; this.lastOnset = now; this.onStroke && this.onStroke(false);
+    }
+    if(this.fast < this.slow*1.04) this.armed = true;
+    // pri plynulom šúchaní bez výrazných nárazov dopočíta tempo, aby vláčik nezastal
+    if(this.active && now - this.lastOnset > 650 && now - this.activeSince > 400){
+      this.synthAcc += dt * 2;
+      while(this.synthAcc >= 1){ this.synthAcc -= 1; this.last = now; this.onStroke && this.onStroke(true); }
+    } else this.synthAcc = 0;
+  },
+  gate(ms){ this.gateUntil = performance.now() + ms; }
+};
+
+function whistle(len=1.1){
+  if(!S.sound) return;
+  const ctx = audio(), t = ctx.currentTime;
+  Mic.gate(len*1000 + 450);
+  const out = ctx.createGain(); out.gain.setValueAtTime(0, t);
+  out.gain.linearRampToValueAtTime(0.16, t+0.06); out.gain.setValueAtTime(0.16, t+len-0.15); out.gain.linearRampToValueAtTime(0, t+len);
+  const lp = ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value = 2600;
+  out.connect(lp); lp.connect(ctx.destination);
+  [523, 659, 784].forEach((f,i)=>{
+    const o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.setValueAtTime(f*0.96, t); o.frequency.linearRampToValueAtTime(f, t+0.12);
+    const g = ctx.createGain(); g.gain.value = 0.33; o.connect(g); g.connect(out); o.start(t); o.stop(t+len+0.05);
+  });
+  const n = ctx.createBufferSource(), b = ctx.createBuffer(1, ctx.sampleRate*len, ctx.sampleRate), d = b.getChannelData(0);
+  for(let i=0;i<d.length;i++) d[i] = (Math.random()*2-1)*0.25;
+  n.buffer = b; const bp = ctx.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value = 1400; bp.Q.value = 0.8;
+  n.connect(bp); bp.connect(out); n.start(t);
+}
+function jingle(){
+  if(!S.sound) return;
+  const ctx = audio(), t = ctx.currentTime;
+  [523,659,784,1047,784,1047].forEach((f,i)=>{
+    const o = ctx.createOscillator(), g = ctx.createGain(); o.type="triangle"; o.frequency.value=f;
+    const s = t + i*0.14; g.gain.setValueAtTime(0,s); g.gain.linearRampToValueAtTime(0.18,s+0.02); g.gain.exponentialRampToValueAtTime(0.001,s+0.35);
+    o.connect(g); g.connect(ctx.destination); o.start(s); o.stop(s+0.4);
+  });
+}
+
+/* zubný oblúk v ikone: 10 zúbkov hore, 10 dole */
+(function arches(){
+  const NS="http://www.w3.org/2000/svg";
+  [["aU",-1],["aL",1]].forEach(([id,dir])=>{
+    const g=$(id), cy = dir<0 ? 44 : 58;
+    for(let k=0;k<10;k++){
+      const t = Math.PI*(k+0.5)/10, x = 50 - Math.cos(t)*32, y = cy + dir*Math.sin(t)*30;
+      const ang = Math.atan2(dir*Math.cos(t)*30, Math.sin(t)*32)*180/Math.PI;
+      const front = k>=3 && k<=6, w = front?8:10, h = front?9:11;
+      const r=document.createElementNS(NS,"rect");
+      r.setAttribute("x",x-w/2); r.setAttribute("y",y-h/2); r.setAttribute("width",w); r.setAttribute("height",h); r.setAttribute("rx",3);
+      r.setAttribute("fill","#f3efe6"); r.setAttribute("stroke","#13233f"); r.setAttribute("stroke-width","1");
+      r.setAttribute("transform",`rotate(${ang} ${x} ${y})`); g.appendChild(r);
+    }
+  });
+})();
+
+/* ================= Úseky trasy ================= */
+const ZONES = [
+  {t:"Žuvacie plôšky", p:"Hore aj dole: kefkou dopredu a dozadu po vrchu zúbkov.", hl:["aU","aL"], st:"Žuvacia"},
+  {t:"Vonkajšie plôšky", p:"Zahryzni, usmej sa a krúž kefkou po zúbkoch.", hl:["oU","oL"], st:"Úsmevová"},
+  {t:"Vnútro hore", p:"Otvor pusu. Kefkou od ďasna dolu, aj za prednými zúbkami.", hl:["iU"], st:"Podnebná"},
+  {t:"Vnútro dole", p:"Kefkou od ďasna hore. Posledný úsek do cieľa!", hl:["iL"], st:"Čisté Zúbkovo"}
+];
+const START_ST = "Kefkovo";
+const L = 1500;                   // dĺžka úseku vo svetových jednotkách
+
+/* ================= Hra ================= */
+const G = {
+  run:false, paused:false, prof:null, part:"rano",
+  zone:0, frac:0, strokes:0, zoneStrokes:0, startT:0, elapsed:0,
+  d:0, v:0, wheel:0, state:"ready", stateT:0, lastStrokeT:0,
+  strokeTimes:[], rate:0, smoke:[], bugs:[], sparks:[], t:0
+};
+
+function startGame(prof){
+  G.prof = prof; G.part = partNow(); prof._fallback = false;
+  Object.assign(G,{zone:0,frac:0,strokes:0,zoneStrokes:0,elapsed:0,d:0,v:0,wheel:0,state:"ready",stateT:0,
+    lastStrokeT:performance.now(),strokeTimes:[],rate:0,smoke:[],bugs:[],sparks:[],paused:false,run:true});
+  document.documentElement.style.setProperty("--kid", prof.color);
+  show("game"); setupHud(); resize();
+  audio();
+  try{ navigator.wakeLock && navigator.wakeLock.request("screen").then(l=>G.lock=l).catch(()=>{}); }catch(e){}
+  const needMic = prof.mode !== "timer";
+  const go = () => { banner("Nástupište "+START_ST, "Kefka do pusy…", "Pripraviť na odchod", 2200); setTimeout(()=>{ if(G.run){ whistle(1.0); G.state="run"; G.startT=performance.now(); } }, 2300); };
+  if(needMic){
+    const ask = setTimeout(()=>{ if(!Mic.ok) banner("Mikrofón","Povoľ mikrofón","Prehliadač sa pýta, či môže počúvať kefku", 4000); }, 900);
+    Promise.race([Mic.start(), new Promise(r=>setTimeout(()=>r(false), 12000))]).then(ok=>{
+      clearTimeout(ask);
+      if(!ok){ prof._fallback = true; banner("Mikrofón nie je dostupný","Vláčik pôjde podľa času","Povoľ mikrofón v prehliadači", 2600); setTimeout(go, 2700); }
+      else go();
+    });
+  } else go();
+}
+Mic.onStroke = (synth)=>{
+  if(!G.run || G.paused || (G.state!=="run" && G.state!=="station")) return;
+  if(modeOf()!=="mic") return;
+  addStroke(synth);
+};
+function modeOf(){ const p=G.prof; if(!p) return "timer"; if(p.mode!=="timer" && (p._fallback || !Mic.ok)) return "timer"; return p.mode; }
+function addStroke(synth){
+  const now = performance.now();
+  G.strokes++; G.zoneStrokes++; G.lastStrokeT = now; G.strokeTimes.push(now);
+  if(!synth || Math.random()<0.5) spawnBug();
+}
+
+function setupHud(){
+  const rb = $("routeBar"); rb.querySelectorAll(".st,.mk").forEach(e=>e.remove());
+  for(let i=0;i<=4;i++){ const s=document.createElement("div"); s.className="st"; s.style.left = `calc(8px + (100% - 16px) * ${i/4})`; s.id="st"+i; rb.appendChild(s); }
+  const mk = document.createElement("div"); mk.className="mk"; mk.id="mk"; rb.appendChild(mk);
+  const mi = $("micInd"); mi.innerHTML=""; for(let i=0;i<7;i++) mi.appendChild(document.createElement("span"));
+  $("micInd").parentElement.hidden = G.prof.mode==="timer";
+  setZoneHud(0);
+  updMute();
+}
+function setZoneHud(z){
+  const Z = ZONES[z];
+  $("zoneK").textContent = `Úsek ${z+1} z 4 · smer ${Z.st}`;
+  $("zoneT").textContent = Z.t; $("zoneP").textContent = Z.p;
+  ["aU","aL","oU","oL","iU","iL"].forEach(id=>{
+    const el = $(id), on = Z.hl.includes(id);
+    if(id[0]==="a") el.querySelectorAll("rect").forEach(r=>r.setAttribute("fill", on ? "#ffd34d" : "#f3efe6"));
+    else el.setAttribute("opacity", on ? "1" : "0");
+  });
+  const m = modeOf();
+  $("cntL").textContent = m==="mic" ? "z "+G.prof.target : "sekúnd";
+}
+let banTimer=0;
+function banner(k,t,p,ms){
+  const b=$("banner"); $("banK").textContent=k; $("banT").textContent=t; $("banP").textContent=p;
+  b.hidden=false; b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop");
+  clearTimeout(banTimer); banTimer=setTimeout(()=>b.hidden=true, ms);
+}
+
+function step(now, dt){
+  G.t += dt;
+  Mic.tick(now, dt);
+  if(!G.run) return;
+  const mode = modeOf();
+  if(!G.paused && G.state!=="ready" && G.state!=="done") G.elapsed += dt;
+
+  // tempo (šúchnutia za minútu) z posledných 3 s
+  G.strokeTimes = G.strokeTimes.filter(t=> now - t < 3000);
+  const targetRate = mode==="mic" ? G.strokeTimes.length/3*60 : (mode==="electric" ? (Mic.active?150:0) : 120);
+  G.rate += (targetRate - G.rate) * Math.min(1, dt*3);
+
+  if(!G.paused && G.state==="run"){
+    if(mode==="mic") G.frac = Math.min(1, G.zoneStrokes / G.prof.target);
+    else if(mode==="electric"){ if(Mic.active){ G.frac = Math.min(1, G.frac + dt/30); if(Math.random()<dt*3) spawnBug(); } }
+    else { G.frac = Math.min(1, G.frac + dt/30); if(Math.random()<dt*1.5) spawnBug(); }
+  }
+  // cieľová poloha a plynulý pohyb vláčika
+  const goal = (G.zone + G.frac) * L;
+  const gap = goal - G.d;
+  const vMax = 340;
+  const want = gap > 0.5 ? Math.min(vMax, Math.sqrt(2*260*gap)) : 0;
+  G.v += (want - G.v) * Math.min(1, dt * (want > G.v ? 1.6 : 3.2));
+  if(G.v < 0.5 && gap < 0.5) G.v = 0;
+  G.d = Math.min(G.d + G.v*dt, (G.zone+1)*L);
+  G.wheel += G.v*dt;
+
+  // príchod do stanice
+  if(G.state==="run" && G.frac>=1 && G.d >= (G.zone+1)*L - 1){
+    G.d = (G.zone+1)*L;
+    if(G.zone===3){ finishGame(); return; }
+    G.state = "station"; G.stateT = now;
+    whistle(0.8);
+    for(let i=0;i<26;i++) spawnSpark(G.zone);
+    const nz = G.zone+1;
+    banner("Stanica "+ZONES[G.zone].st, ZONES[nz].t, ZONES[nz].p, 2600);
+    $("st"+(G.zone+1)).classList.add("done");
+  }
+  if(G.state==="station" && now - G.stateT > 2600){
+    const carry = Math.max(0, G.zoneStrokes - G.prof.target);
+    G.zone++; G.frac = 0; G.zoneStrokes = mode==="mic" ? Math.min(carry, 10) : 0;
+    G.state = "run"; setZoneHud(G.zone);
+  }
+
+  // HUD
+  $("cnt").textContent = mode==="mic" ? G.zoneStrokes : Math.max(0, Math.ceil(30*(1-G.frac)));
+  const tot = G.d/(4*L);
+  $("routeFill").style.width = `calc((100% - 16px) * ${tot})`;
+  $("mk").style.left = `calc(8px + (100% - 16px) * ${tot})`;
+  const spans = $("micInd").children, lvl = Math.max(0, Math.min(7, Math.round(Mic.db/2.4)));
+  for(let i=0;i<spans.length;i++){ spans[i].style.height = (6 + (i<lvl ? i*4+4 : 0))+"px"; spans[i].classList.toggle("on", i<lvl && Mic.active); }
+  const idle = G.state==="run" && !G.paused && mode!=="timer" && (mode==="mic" ? now - G.lastStrokeT > 4000 : !Mic.active && now - Mic.activeSince > 4000);
+  $("nudge").hidden = !idle;
+}
+
+function finishGame(){
+  G.state="done"; G.run=false; jingle();
+  try{ G.lock && G.lock.release(); }catch(e){}
+  const now = new Date();
+  S.history.push({p:G.prof.id, day:dayKey(now), part:G.part, s:G.strokes, sec:Math.round(G.elapsed), m:modeOf(), at:now.toISOString()});
+  if(S.history.length>3000) S.history = S.history.slice(-3000);
+  save();
+  $("finDate").textContent = now.toLocaleDateString("sk-SK",{weekday:"long",day:"numeric",month:"numeric"}) + " · " + pad(now.getHours())+":"+pad(now.getMinutes());
+  $("finName").textContent = G.prof.name;
+  $("finStrokes").textContent = modeOf()==="mic" ? G.strokes : "jazda podľa času";
+  const m = Math.floor(G.elapsed/60), s = Math.round(G.elapsed%60);
+  $("finTime").textContent = m+" min "+pad(s)+" s";
+  $("finTotal").textContent = S.history.filter(h=>h.p===G.prof.id).length;
+  $("stampPart").textContent = G.part==="rano" ? "RÁNO" : "VEČER";
+  $("finT").textContent = "Cieľ! Zúbky sú čisté.";
+  setTimeout(()=>{ show("finish", true); confettiStart(); }, 900);
+}
+
+/* ================= Častice ================= */
+function wagonPos(i){ return {x: G.d - 300 - i*136 - 62, y: -78}; }
+function spawnBug(){
+  if(G.bugs.length>40) return;
+  const w = wagonPos(Math.min(G.zone,3));
+  G.bugs.push({x:w.x + (Math.random()*60-30), y:w.y, vx:(Math.random()*80-40)-G.v*0.15, vy:-(110+Math.random()*90), life:0, max:1.3+Math.random()*.5, r:9+Math.random()*5, rot:Math.random()*6, hue:90+Math.random()*40});
+}
+function spawnSpark(i){
+  const w = wagonPos(i);
+  G.sparks.push({x:w.x+(Math.random()*120-60), y:w.y+(Math.random()*50-30), vx:Math.random()*60-30, vy:-Math.random()*90-20, life:0, max:0.8+Math.random()*0.8, s:4+Math.random()*6});
+}
+
+/* ================= Kreslenie scény ================= */
+const cv = $("scene"), cx = cv.getContext("2d");
+let W=0,H=0,DPR=1,K=1,U=0,HU=0,RY=0,TRX=0.62;
+function resize(){
+  DPR = Math.min(2, window.devicePixelRatio||1);
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
+  const portrait = W < H*0.9;
+  K = portrait ? Math.min(H/600, W/500) : Math.min(H/600, W/760);
+  U = W/K; HU = H/K; RY = HU*(portrait ? 0.64 : 0.76); TRX = portrait ? 0.7 : 0.64;
+}
+window.addEventListener("resize", ()=>{ if(!$("game").hidden) resize(); });
+
+function hash(n){ const s = Math.sin(n*127.1+311.7)*43758.5453; return s - Math.floor(s); }
+function shade(hex, f){ // f<0 tmavšie, f>0 svetlejšie
+  const n = parseInt(hex.slice(1),16); let r=n>>16, g=(n>>8)&255, b=n&255;
+  if(f<0){ r*=1+f; g*=1+f; b*=1+f; } else { r+=(255-r)*f; g+=(255-g)*f; b+=(255-b)*f; }
+  return `rgb(${r|0},${g|0},${b|0})`;
+}
+function mix(a,b,t){ const A=parseInt(a.slice(1),16),B=parseInt(b.slice(1),16);
+  const r=((A>>16)*(1-t)+(B>>16)*t)|0, g=(((A>>8)&255)*(1-t)+((B>>8)&255)*t)|0, bl=((A&255)*(1-t)+(B&255)*t)|0;
+  return `rgb(${r},${g},${bl})`; }
+
+const THEMES = {
+  rano:{sky:["#5aa9e6","#9fd3f2","#ffe2b8"], sun:"#fff2c4", far:"#8fb4cf", hill:"#79b26a", hill2:"#5f9a55", tree:"#3f7f43", tree2:"#2f6a37", grass:"#6fae4f", grassD:"#4f8f3b", ballast:"#9b8f80", night:false},
+  vecer:{sky:["#0d1838","#2a2f6b","#c9677a"], sun:"#f8f1d0", far:"#3a4675", hill:"#2f4a5e", hill2:"#263e50", tree:"#1f3a3f", tree2:"#173033", grass:"#2f5a3f", grassD:"#224530", ballast:"#5d5866", night:true}
+};
+const stars = Array.from({length:120},(_,i)=>({x:hash(i+1),y:hash(i+50)*0.55,r:hash(i+99)*1.4+0.3,tw:hash(i+7)*6}));
+
+function draw(){
+  const T = THEMES[G.part] || THEMES.rano;
+  cx.setTransform(DPR*K,0,0,DPR*K,0,0);
+  const cam = G.d - TRX*U;
+
+  // obloha
+  const sg = cx.createLinearGradient(0,0,0,RY);
+  sg.addColorStop(0,T.sky[0]); sg.addColorStop(0.6,T.sky[1]); sg.addColorStop(1,T.sky[2]);
+  cx.fillStyle = sg; cx.fillRect(0,0,U,HU);
+  if(T.night){
+    for(const s of stars){ cx.globalAlpha = 0.5+0.5*Math.sin(G.t*1.5+s.tw); cx.fillStyle="#fff";
+      cx.beginPath(); cx.arc(((s.x*U*1.3 - cam*0.02)%(U*1.3)+U*1.3)%(U*1.3), s.y*RY, s.r, 0, 7); cx.fill(); }
+    cx.globalAlpha=1;
+    // mesiac
+    const mx = U*0.18, my = RY*0.22;
+    const mg = cx.createRadialGradient(mx,my,10,mx,my,90); mg.addColorStop(0,"rgba(248,241,208,.35)"); mg.addColorStop(1,"rgba(248,241,208,0)");
+    cx.fillStyle=mg; cx.beginPath(); cx.arc(mx,my,90,0,7); cx.fill();
+    cx.fillStyle=T.sun; cx.beginPath(); cx.arc(mx,my,30,0,7); cx.fill();
+    cx.fillStyle="rgba(180,170,140,.35)"; [[-8,-6,6],[9,5,4],[2,12,3]].forEach(c=>{cx.beginPath();cx.arc(mx+c[0],my+c[1],c[2],0,7);cx.fill();});
+  } else {
+    const sx = U*0.8, sy = RY*0.3;
+    const g = cx.createRadialGradient(sx,sy,10,sx,sy,200); g.addColorStop(0,"rgba(255,244,200,.9)"); g.addColorStop(0.25,"rgba(255,230,160,.35)"); g.addColorStop(1,"rgba(255,230,160,0)");
+    cx.fillStyle=g; cx.beginPath(); cx.arc(sx,sy,200,0,7); cx.fill();
+    cx.fillStyle=T.sun; cx.beginPath(); cx.arc(sx,sy,34,0,7); cx.fill();
+    // oblaky
+    for(let i=0;i<5;i++){ const cxp = ((hash(i*3)*U*1.6 - cam*0.05 - G.t*6) % (U*1.6) + U*1.6) % (U*1.6) - U*0.3, cyp = RY*(0.12+hash(i*5)*0.3);
+      cloud(cxp, cyp, 0.7+hash(i)*0.8); }
+  }
+
+  // vzdialené hory
+  ridge(cam*0.1, RY-70, T.far, (x)=> 70*Math.sin(x*0.0035)+40*Math.sin(x*0.009+1)+22*Math.sin(x*0.023+2)+90);
+  // kopce so stromami
+  const hillF = (x)=> 28*Math.sin(x*0.005+0.5)+14*Math.sin(x*0.014)+30;
+  ridge(cam*0.3, RY-30, T.hill, hillF);
+  treesOnLayer(cam*0.3, 0.3, 120, 0.55, T, (x)=> RY-30-hillF(x), T.hill);
+  // bližšie stromy za traťou
+  const nearF = (x)=> 8*Math.sin(x*0.01)+12;
+  ridge(cam*0.6, RY-6, T.hill2, nearF);
+  treesOnLayer(cam*0.6, 0.6, 210, 0.85, T, (x)=> RY-6-nearF(x), null);
+
+  // stanice (za traťou)
+  for(let i=0;i<=4;i++) station(i*L - cam, i, T);
+  // telegrafné stĺpy
+  poles(cam, T);
+
+  // zem, násyp, koľaj
+  const gg = cx.createLinearGradient(0,RY-10,0,HU); gg.addColorStop(0,T.grass); gg.addColorStop(1,T.grassD);
+  cx.fillStyle=gg; cx.fillRect(0,RY-8,U,HU-RY+8);
+  cx.fillStyle=T.ballast; cx.beginPath(); cx.moveTo(0,RY+4); cx.lineTo(U,RY+4); cx.lineTo(U,RY+26); cx.lineTo(0,RY+26); cx.fill();
+  cx.fillStyle="rgba(0,0,0,.18)";
+  for(let x = -((cam)%9+9)%9; x<U; x+=9){ const h=hash(Math.floor((x+cam)/9)); cx.fillRect(x, RY+8+h*14, 3, 2); }
+  // podvaly
+  const sp=30; cx.fillStyle = T.night ? "#3b2c22" : "#5b4130";
+  for(let x = -((cam%sp)+sp)%sp; x<U+sp; x+=sp){ cx.fillRect(x, RY+1, 18, 7); }
+  // koľajnica
+  cx.fillStyle = T.night ? "#6f7680" : "#8a929c"; cx.fillRect(0,RY-3,U,5);
+  cx.fillStyle = T.night ? "#c9d2de" : "#e9eef4"; cx.fillRect(0,RY-3,U,1.4);
+
+  // cieľová brána
+  arch(4*L - cam + 60, T);
+
+  // dym (za vláčikom vo svete)
+  for(const p of G.smoke){
+    const a = Math.max(0, 1 - p.life/p.max);
+    cx.fillStyle = T.night ? `rgba(200,205,220,${a*0.35})` : `rgba(245,245,245,${a*0.6})`;
+    cx.beginPath(); cx.arc(p.x - cam, p.y + RY, p.r, 0, 7); cx.fill();
+  }
+
+  // vláčik
+  train(G.d - cam, RY, G.prof ? G.prof.color : "#2f6fdb", T);
+
+  // bacily a iskry
+  for(const b of G.bugs) bug(b, cam);
+  for(const s of G.sparks){ const a = 1 - s.life/s.max; sparkle(s.x-cam, s.y+RY, s.s*(0.6+a*0.6), a); }
+
+  // plot a kríky pred traťou
+  const fy = RY + 70, fo = cam*1.1;
+  cx.fillStyle = T.night ? "#4a3a2c" : "#8a6446";
+  cx.fillRect(0, fy-34, U, 5); cx.fillRect(0, fy-16, U, 5);
+  for(let x = -((fo%46)+46)%46; x<U+46; x+=46){ cx.fillRect(x, fy-44, 7, 46); cx.beginPath(); cx.moveTo(x-1,fy-44); cx.lineTo(x+3.5,fy-51); cx.lineTo(x+8,fy-44); cx.fill(); }
+  for(let i=Math.floor(cam*1.18/260)-1; i<(cam*1.18+U)/260+1; i++){
+    if(hash(i+21)<0.45) continue;
+    const x = i*260 + hash(i+5)*140 - cam*1.18, s = 0.8+hash(i+8)*0.7;
+    cx.fillStyle = T.night ? "#1d3a2a" : "#4f8f3b"; cx.beginPath(); cx.arc(x,fy+10,26*s,Math.PI,0); cx.arc(x+28*s,fy+10,20*s,Math.PI,0); cx.arc(x-24*s,fy+10,18*s,Math.PI,0); cx.fill();
+    cx.fillStyle = T.night ? "#25473a" : "#62a548"; cx.beginPath(); cx.arc(x-4*s,fy+2,14*s,0,7); cx.fill();
+  }
+  // popredie
+  for(let i=Math.floor(cam*1.25/120)-1; i<(cam*1.25+U)/120+1; i++){
+    const x = i*120 + hash(i)*90 - cam*1.25, h = hash(i+3), y = fy + 30 + hash(i+9)*Math.max(20, HU-fy-40);
+    if(h<0.55) tuft(x, y, 0.8+h, T);
+    else if(h<0.8) flower(x, y, T);
+  }
+  // nočný nádych
+  if(T.night){ cx.fillStyle="rgba(10,15,45,.12)"; cx.fillRect(0,0,U,HU); }
+}
+
+function cloud(x,y,s){
+  cx.fillStyle="rgba(255,255,255,.85)";
+  [[0,0,26],[24,-8,30],[52,0,24],[30,8,24],[12,8,20]].forEach(c=>{ cx.beginPath(); cx.arc(x+c[0]*s, y+c[1]*s, c[2]*s, 0, 7); cx.fill(); });
+}
+function ridge(off, base, col, f){
+  cx.fillStyle=col; cx.beginPath(); cx.moveTo(0,HU);
+  for(let x=0;x<=U+10;x+=10){ cx.lineTo(x, base - f(x+off)); }
+  cx.lineTo(U,HU); cx.closePath(); cx.fill();
+}
+function treesOnLayer(off, par, spacing, sc, T, yAt, tint){
+  const i0 = Math.floor(off/spacing)-2, i1 = Math.ceil((off+U)/spacing)+2;
+  for(let i=i0;i<i1;i++){
+    const h = hash(i*7.3+par*100);
+    if(h < 0.35) continue;
+    const wx = i*spacing + hash(i*1.7+par)*spacing*0.7, x = wx - off;
+    const y = yAt(wx) + 4;
+    tree(x, y, sc*(0.75+hash(i*3.1)*0.5), hash(i*5.9) < 0.55, T, tint);
+  }
+}
+function tree(x,y,s,conifer,T,tint){
+  cx.save(); cx.translate(x,y); cx.scale(s,s);
+  cx.fillStyle = T.night ? "#2a2018" : "#5a4030"; cx.fillRect(-4,-18,8,20);
+  if(conifer){
+    for(let k=0;k<3;k++){ cx.fillStyle = k%2 ? T.tree2 : T.tree; cx.beginPath(); cx.moveTo(-30+k*6,-14-k*24); cx.lineTo(0,-56-k*24); cx.lineTo(30-k*6,-14-k*24); cx.fill(); }
+  } else {
+    cx.fillStyle=T.tree2; cx.beginPath(); cx.arc(-12,-40,22,0,7); cx.arc(14,-38,20,0,7); cx.fill();
+    cx.fillStyle=T.tree; cx.beginPath(); cx.arc(0,-56,26,0,7); cx.arc(-14,-44,18,0,7); cx.fill();
+    cx.fillStyle="rgba(255,255,255,.08)"; cx.beginPath(); cx.arc(8,-64,12,0,7); cx.fill();
+  }
+  cx.restore();
+}
+function poles(cam,T){
+  const sp = 420, i0 = Math.floor(cam/sp)-1, i1 = Math.ceil((cam+U)/sp)+1;
+  cx.strokeStyle = T.night ? "#2c241e" : "#4a3628"; cx.lineWidth = 5;
+  const top = RY-150;
+  for(let i=i0;i<i1;i++){
+    const x = i*sp - cam + 200;
+    cx.beginPath(); cx.moveTo(x,RY-6); cx.lineTo(x,top); cx.stroke();
+    cx.lineWidth=4; cx.beginPath(); cx.moveTo(x-18,top+10); cx.lineTo(x+18,top+10); cx.stroke(); cx.lineWidth=5;
+  }
+  cx.strokeStyle = T.night ? "rgba(20,20,30,.6)" : "rgba(40,40,40,.45)"; cx.lineWidth = 1.2;
+  for(let i=i0;i<i1;i++){
+    const x = i*sp - cam + 200;
+    [-15,15].forEach(o=>{ cx.beginPath(); cx.moveTo(x+o, top+9); cx.quadraticCurveTo(x+sp/2+o, top+40, x+sp+o, top+9); cx.stroke(); });
+  }
+}
+function station(x, i, T){
+  if(x < -900 || x > U+300) return;
+  const final = i===4, name = i===0 ? START_ST : ZONES[i-1].st;
+  const py = RY-14;
+  // nástupište
+  cx.fillStyle = T.night ? "#56525a" : "#b9b2a6"; cx.fillRect(x-700, py, 760, 14);
+  cx.fillStyle = T.night ? "#c9b25a" : "#f2d24b"; cx.fillRect(x-700, py, 760, 3);
+  // budova
+  const bx = x-470, bw = final ? 300 : 230, bh = final ? 150 : 120, by = py-bh;
+  cx.fillStyle = T.night ? "#8c7c68" : "#efe0c4"; cx.fillRect(bx, by, bw, bh);
+  cx.fillStyle = T.night ? "#6e5f50" : "#d9c6a2"; cx.fillRect(bx, by+bh-18, bw, 18);
+  cx.fillStyle = T.night ? "#5a2a24" : "#a8432f";
+  cx.beginPath(); cx.moveTo(bx-18, by+4); cx.lineTo(bx+bw*0.5, by-58); cx.lineTo(bx+bw+18, by+4); cx.fill();
+  // okná a dvere
+  const win = T.night ? "#ffd987" : "#9cc6e0";
+  for(let k=0;k<3;k++){ const wx = bx + 22 + k*(bw-44)/2.6; if(k===1){ cx.fillStyle = T.night?"#3a2a20":"#6b4a33"; cx.fillRect(bx+bw/2-18, by+bh-70, 36, 70); continue; }
+    cx.fillStyle = win; cx.fillRect(k===0?bx+22:bx+bw-58, by+40, 36, 44); cx.strokeStyle="rgba(0,0,0,.25)"; cx.lineWidth=2; cx.strokeRect(k===0?bx+22:bx+bw-58, by+40, 36, 44); }
+  if(T.night){ cx.fillStyle="rgba(255,217,135,.18)"; cx.beginPath(); cx.arc(bx+40,by+62,46,0,7); cx.arc(bx+bw-40,by+62,46,0,7); cx.fill(); }
+  // hodiny
+  cx.fillStyle="#fff"; cx.beginPath(); cx.arc(bx+bw/2, by-14, 13, 0, 7); cx.fill(); cx.strokeStyle="#333"; cx.lineWidth=2; cx.stroke();
+  const d=new Date(), ha=(d.getHours()%12+d.getMinutes()/60)/12*Math.PI*2, ma=d.getMinutes()/60*Math.PI*2;
+  cx.beginPath(); cx.moveTo(bx+bw/2,by-14); cx.lineTo(bx+bw/2+Math.sin(ha)*7, by-14-Math.cos(ha)*7); cx.moveTo(bx+bw/2,by-14); cx.lineTo(bx+bw/2+Math.sin(ma)*10, by-14-Math.cos(ma)*10); cx.stroke();
+  // tabuľa s menom stanice
+  cx.font = "800 22px 'Baloo 2', sans-serif";
+  const tw = cx.measureText(name).width + 30, sx = final ? x-230 : x+28, sy = py-118;
+  cx.fillStyle = "#3a2a20"; cx.fillRect(sx+10, sy+30, 5, 88); cx.fillRect(sx+tw-15, sy+30, 5, 88);
+  cx.fillStyle = "#1d3f8a"; roundRect(sx, sy, tw, 36, 5); cx.fill();
+  cx.strokeStyle="#fff"; cx.lineWidth=2.5; roundRect(sx+3, sy+3, tw-6, 30, 4); cx.stroke();
+  cx.fillStyle="#fff"; cx.textBaseline="middle"; cx.fillText(name, sx+15, sy+19);
+  // lampy
+  [x-640, x-40].forEach(lx=>{ cx.fillStyle="#2b2b30"; cx.fillRect(lx-2, py-110, 4, 110); cx.fillRect(lx-10, py-114, 20, 6);
+    cx.fillStyle = T.night ? "#ffe39a" : "#e8e2c8"; cx.beginPath(); cx.arc(lx, py-104, 6, 0, 7); cx.fill();
+    if(T.night){ const lg=cx.createRadialGradient(lx,py-104,2,lx,py-104,70); lg.addColorStop(0,"rgba(255,227,154,.45)"); lg.addColorStop(1,"rgba(255,227,154,0)"); cx.fillStyle=lg; cx.beginPath(); cx.arc(lx,py-104,70,0,7); cx.fill(); } });
+  if(final){ // vlajočky
+    cx.strokeStyle="#333"; cx.lineWidth=1.5; cx.beginPath(); cx.moveTo(bx-10, by+6); cx.quadraticCurveTo(bx+bw/2, by+40, bx+bw+10, by+6); cx.stroke();
+    const cols=["#e4572e","#f2d24b","#2f9e5a","#2f6fdb","#d6407f"];
+    for(let k=0;k<12;k++){ const t=k/11, px=bx-10+(bw+20)*t, pyy=by+6+ (1-(2*t-1)**2)*17; cx.fillStyle=cols[k%5]; cx.beginPath(); cx.moveTo(px-7,pyy); cx.lineTo(px+7,pyy); cx.lineTo(px,pyy+14); cx.fill(); }
+  }
+}
+function arch(x,T){
+  if(x < -200 || x > U+200) return;
+  const top = RY-235;
+  cx.fillStyle = "#8a2b1d"; cx.fillRect(x-6, top, 12, 235);
+  for(let r=0;r<2;r++) for(let c=0;c<10;c++){ cx.fillStyle = (r+c)%2 ? "#111" : "#fff"; cx.fillRect(x-150 + c*15, top + r*15, 15, 15); }
+  cx.fillStyle="#8a2b1d"; cx.fillRect(x-156, top-6, 162, 6);
+  cx.font = "800 26px 'Baloo 2', sans-serif"; cx.fillStyle = T.night ? "#ffe39a" : "#8a2b1d"; cx.textBaseline="alphabetic"; cx.fillText("CIEĽ", x-118, top-14);
+}
+function roundRect(x,y,w,h,r){ cx.beginPath(); cx.moveTo(x+r,y); cx.arcTo(x+w,y,x+w,y+h,r); cx.arcTo(x+w,y+h,x,y+h,r); cx.arcTo(x,y+h,x,y,r); cx.arcTo(x,y,x+w,y,r); cx.closePath(); }
+
+function wheel(x,y,r,ang,T){
+  cx.fillStyle="#1d1d22"; cx.beginPath(); cx.arc(x,y,r,0,7); cx.fill();
+  cx.strokeStyle="#c7a14a"; cx.lineWidth=r*0.16; cx.beginPath(); cx.arc(x,y,r*0.86,0,7); cx.stroke();
+  cx.strokeStyle="#9a9aa4"; cx.lineWidth=Math.max(1.5,r*0.09);
+  for(let k=0;k<10;k++){ const a = ang + k*Math.PI/5; cx.beginPath(); cx.moveTo(x+Math.cos(a)*r*0.2, y+Math.sin(a)*r*0.2); cx.lineTo(x+Math.cos(a)*r*0.8, y+Math.sin(a)*r*0.8); cx.stroke(); }
+  cx.fillStyle="#d9b25a"; cx.beginPath(); cx.arc(x,y,r*0.22,0,7); cx.fill();
+}
+function train(fx, ry, color, T){
+  const spd = Math.min(1, G.v/300);
+  const bob = Math.sin(G.t*14)*0.9*spd;
+  cx.save(); cx.translate(fx, ry);
+  // tieň
+  cx.fillStyle="rgba(0,0,0,.25)"; cx.beginPath(); cx.ellipse(-450, 6, 470, 8, 0, 0, 7); cx.fill();
+  if(T.night){ // reflektor
+    const lg = cx.createLinearGradient(0,0,420,0); lg.addColorStop(0,"rgba(255,240,180,.38)"); lg.addColorStop(1,"rgba(255,240,180,0)");
+    cx.fillStyle=lg; cx.beginPath(); cx.moveTo(-10,-104); cx.lineTo(430,-170); cx.lineTo(430,10); cx.lineTo(-10,-92); cx.fill();
+  }
+  // vagóny
+  for(let i=3;i>=0;i--) wagon(-300 - i*136, i, T, bob);
+  // tender
+  const tx = -278;
+  cx.translate(0,bob);
+  cx.fillStyle = shade(color,-0.35); roundRect(tx, -98, 68, 64, 5); cx.fill();
+  cx.fillStyle = "#1b1b1f"; cx.beginPath(); cx.moveTo(tx+4,-98); cx.quadraticCurveTo(tx+34,-122,tx+64,-98); cx.fill();
+  cx.fillStyle = "rgba(255,255,255,.15)"; cx.fillRect(tx+4,-92,60,4);
+  cx.translate(0,-bob);
+  wheel(tx+16,-14,14,G.wheel/14,T); wheel(tx+52,-14,14,G.wheel/14,T);
+  // spriahlo
+  cx.fillStyle="#2a2a2e"; cx.fillRect(-214,-34,10,6); cx.fillRect(-312,-34,36,6);
+  cx.translate(0,bob);
+  // rám
+  cx.fillStyle="#222228"; cx.fillRect(-206,-40,206,12);
+  cx.fillStyle="#b23a2a"; cx.fillRect(-206,-30,206,4);
+  // kotol
+  const bg = cx.createLinearGradient(0,-96,0,-40);
+  bg.addColorStop(0, shade(color,0.35)); bg.addColorStop(0.35, color); bg.addColorStop(1, shade(color,-0.45));
+  cx.fillStyle = bg; roundRect(-150,-96,126,56,10); cx.fill();
+  cx.fillStyle = "#d9b25a"; [-130,-95,-60].forEach(bx=>cx.fillRect(bx,-96,5,56));
+  // dymnica
+  const sg = cx.createLinearGradient(0,-100,0,-38); sg.addColorStop(0,"#5a5a64"); sg.addColorStop(1,"#1e1e24");
+  cx.fillStyle = sg; roundRect(-30,-100,26,62,8); cx.fill();
+  cx.fillStyle = "#2c2c33"; cx.beginPath(); cx.ellipse(-4,-69,6,30,0,0,7); cx.fill();
+  // komín
+  cx.fillStyle = "#26262c"; cx.beginPath(); cx.moveTo(-44,-96); cx.lineTo(-40,-128); cx.lineTo(-48,-140); cx.lineTo(-16,-140); cx.lineTo(-24,-128); cx.lineTo(-20,-96); cx.fill();
+  cx.fillStyle = "#d9b25a"; cx.fillRect(-48,-142,32,4);
+  // dóm a píšťala
+  cx.fillStyle = "#d9b25a"; cx.beginPath(); cx.arc(-88,-96,13,Math.PI,0); cx.fill(); cx.fillRect(-101,-97,26,3);
+  cx.fillRect(-120,-108,4,12); cx.beginPath(); cx.arc(-118,-110,4,0,7); cx.fill();
+  // lampa
+  cx.fillStyle="#1e1e24"; cx.fillRect(-14,-116,14,14);
+  cx.fillStyle = T.night ? "#fff3b8" : "#f4eccd"; cx.beginPath(); cx.arc(-2,-109,5,0,7); cx.fill();
+  // kabína
+  const cg = cx.createLinearGradient(-206,0,-148,0); cg.addColorStop(0, shade(color,-0.3)); cg.addColorStop(1, color);
+  cx.fillStyle = cg; cx.fillRect(-206,-148,58,108);
+  cx.fillStyle = "#1b1b1f"; cx.fillRect(-214,-160,74,12);
+  cx.fillStyle = T.night ? "#ffd987" : "#d8ecf6"; roundRect(-198,-138,40,34,4); cx.fill();
+  // rušňovodič
+  cx.fillStyle = "#f2c9a0"; cx.beginPath(); cx.arc(-176,-115,9,0,7); cx.fill();
+  cx.fillStyle = "#2a3d6b"; cx.beginPath(); cx.arc(-176,-119,9,Math.PI,0); cx.fill(); cx.fillRect(-176,-121,13,3);
+  cx.fillStyle = "#222"; cx.beginPath(); cx.arc(-172,-115,1.3,0,7); cx.fill();
+  cx.strokeStyle="#7a3b2a"; cx.lineWidth=1.3; cx.beginPath(); cx.arc(-173,-112,3,0.2,Math.PI-0.6); cx.stroke();
+  cx.fillStyle = "#d9b25a"; cx.font="800 13px 'Baloo 2',sans-serif"; cx.textBaseline="middle";
+  cx.fillText(G.prof ? G.prof.name.slice(0,1).toUpperCase() : "Z", -181, -78);
+  // pluh
+  cx.fillStyle = "#b23a2a"; cx.beginPath(); cx.moveTo(-6,-40); cx.lineTo(14,-6); cx.lineTo(-6,-6); cx.fill();
+  cx.fillStyle = "#2a2a2e"; cx.fillRect(-4,-46,12,6);
+  cx.translate(0,-bob);
+  // kolesá rušňa
+  wheel(-16,-12,12,G.wheel/12,T);
+  const a = G.wheel/26;
+  wheel(-70,-26,26,a,T); wheel(-128,-26,26,a,T);
+  wheel(-184,-16,16,G.wheel/16,T);
+  // ojnica
+  const px = Math.cos(a)*12, py = Math.sin(a)*12;
+  cx.strokeStyle="#c9ccd4"; cx.lineWidth=5; cx.lineCap="round";
+  cx.beginPath(); cx.moveTo(-128+px,-26+py); cx.lineTo(-70+px,-26+py); cx.stroke();
+  cx.lineWidth=4; cx.beginPath(); cx.moveTo(-70+px,-26+py); cx.lineTo(-30,-44); cx.stroke();
+  cx.fillStyle="#555"; cx.fillRect(-40,-52,30,14);
+  cx.restore();
+}
+function wagon(x0, i, T, bob){
+  const w = 122;
+  cx.save(); cx.translate(x0,0);
+  cx.translate(0, bob*(i%2?-1:1));
+  // karoséria
+  const dirt = i < G.zone || (i===G.zone && G.state==="station") ? 0 : (i===G.zone ? 1-G.frac : 1);
+  const body = T.night ? "#7b5536" : "#a8703f";
+  const bg = cx.createLinearGradient(0,-104,0,-34); bg.addColorStop(0, shade(body.startsWith("#")?body:"#a8703f",0.15)); bg.addColorStop(1, shade(body,-0.3));
+  cx.fillStyle = bg; roundRect(-w,-104,w,70,6); cx.fill();
+  cx.strokeStyle = "rgba(0,0,0,.18)"; cx.lineWidth=1; for(let k=1;k<8;k++){ cx.beginPath(); cx.moveTo(-w+k*w/8,-98); cx.lineTo(-w+k*w/8,-38); cx.stroke(); }
+  cx.fillStyle = "#3a2a20"; cx.beginPath(); cx.moveTo(-w-6,-104); cx.quadraticCurveTo(-w/2,-122,6,-104); cx.closePath(); cx.fill();
+  cx.fillStyle = G.prof ? G.prof.color : "#2f6fdb"; cx.fillRect(-w,-48,w,6);
+  // okná s cestujúcimi zúbkami
+  for(let k=0;k<3;k++){
+    const wx = -w + 10 + k*38, wy = -96;
+    cx.fillStyle = T.night ? "#ffd987" : "#e6f2f8"; roundRect(wx, wy, 30, 36, 4); cx.fill();
+    tooth(wx+15, wy+22, dirt, k, i);
+  }
+  // číslo úseku
+  cx.fillStyle="#f6e7c8"; cx.font="800 12px 'Baloo 2',sans-serif"; cx.textBaseline="middle"; cx.fillText(String(i+1), -w+4, -40);
+  cx.restore();
+  wheel(x0-w+22, -14, 14, G.wheel/14, T); wheel(x0-22, -14, 14, G.wheel/14, T);
+  cx.fillStyle="#2a2a2e"; cx.fillRect(x0, -34, 14, 6);
+}
+function tooth(x,y,dirt,k,i){
+  const s = 1;
+  const col = mix("#ffffff", "#e3c876", Math.min(1,dirt*0.9));
+  cx.save(); cx.translate(x,y); cx.scale(s,s);
+  cx.fillStyle = col; cx.strokeStyle="rgba(0,0,0,.25)"; cx.lineWidth=1;
+  cx.beginPath();
+  cx.moveTo(-10,-10); cx.quadraticCurveTo(-11,-16,-5,-16); cx.quadraticCurveTo(0,-13,5,-16); cx.quadraticCurveTo(11,-16,10,-10);
+  cx.quadraticCurveTo(10,0,7,6); cx.quadraticCurveTo(5,12,3,12); cx.quadraticCurveTo(1,6,0,4); cx.quadraticCurveTo(-1,6,-3,12);
+  cx.quadraticCurveTo(-5,12,-7,6); cx.quadraticCurveTo(-10,0,-10,-10); cx.closePath(); cx.fill(); cx.stroke();
+  // tvár
+  cx.fillStyle="#2a2118"; cx.beginPath(); cx.arc(-4,-7,1.4,0,7); cx.arc(4,-7,1.4,0,7); cx.fill();
+  cx.strokeStyle="#2a2118"; cx.lineWidth=1.2; cx.beginPath();
+  if(dirt>0.5) cx.arc(0,0,3,Math.PI+0.5,-0.5); else cx.arc(0,-4,3.4,0.3,Math.PI-0.3);
+  cx.stroke();
+  // bacily
+  const n = Math.round(dirt*3 - (k%3)*0.4);
+  for(let b=0;b<n;b++){ const bx = (hash(k*9+b+i*31)-0.5)*14, by = (hash(k*5+b+i*17)-0.5)*16;
+    cx.fillStyle="#5fbf3a"; cx.beginPath(); cx.arc(bx,by,2.6,0,7); cx.fill(); cx.fillStyle="#2e6b1a"; cx.beginPath(); cx.arc(bx+0.6,by-0.4,0.8,0,7); cx.fill(); }
+  if(dirt===0){ const a = 0.5+0.5*Math.sin(G.t*4+k*2+i); sparkle(8,-12,3+a*2.5,a); }
+  cx.restore();
+}
+function sparkle(x,y,s,a){
+  cx.save(); cx.translate(x,y); cx.globalAlpha = Math.max(0,a); cx.fillStyle="#fff";
+  cx.beginPath(); cx.moveTo(0,-s); cx.quadraticCurveTo(0,0,s,0); cx.quadraticCurveTo(0,0,0,s); cx.quadraticCurveTo(0,0,-s,0); cx.quadraticCurveTo(0,0,0,-s); cx.fill();
+  cx.restore();
+}
+function bug(b, cam){
+  const a = 1 - b.life/b.max;
+  cx.save(); cx.translate(b.x - cam, b.y + RY); cx.rotate(b.rot + b.life*3); cx.globalAlpha = Math.min(1, a*1.6);
+  if(b.life > b.max*0.82){ // puf
+    const k = (b.life - b.max*0.82)/(b.max*0.18);
+    cx.strokeStyle = `rgba(255,255,255,${1-k})`; cx.lineWidth=2.5; cx.beginPath(); cx.arc(0,0,b.r*(1+k*1.4),0,7); cx.stroke();
+  } else {
+    cx.fillStyle = `hsl(${b.hue},65%,45%)`;
+    cx.beginPath();
+    for(let k=0;k<8;k++){ const ang=k/8*Math.PI*2, rr = b.r*(k%2?0.75:1.05); cx.lineTo(Math.cos(ang)*rr, Math.sin(ang)*rr); }
+    cx.closePath(); cx.fill();
+    cx.fillStyle="#fff"; cx.beginPath(); cx.arc(-3,-2,2.6,0,7); cx.arc(3,-2,2.6,0,7); cx.fill();
+    cx.fillStyle="#111"; cx.beginPath(); cx.arc(-3,-1.5,1.2,0,7); cx.arc(3,-1.5,1.2,0,7); cx.fill();
+    cx.strokeStyle="#111"; cx.lineWidth=1.2; cx.beginPath(); cx.arc(0,4,2.5,Math.PI+0.4,-0.4); cx.stroke();
+  }
+  cx.restore();
+}
+function tuft(x,y,s,T){
+  cx.strokeStyle = T.night ? "#1f4030" : "#3f7f2f"; cx.lineWidth = 2.2*s; cx.lineCap="round";
+  for(let k=-3;k<=3;k++){ cx.beginPath(); cx.moveTo(x+k*3*s, y); cx.quadraticCurveTo(x+k*4*s, y-14*s, x+k*7*s, y-(22-Math.abs(k)*3)*s); cx.stroke(); }
+}
+function flower(x,y,T){
+  cx.strokeStyle = T.night ? "#1f4030" : "#3f7f2f"; cx.lineWidth=2; cx.beginPath(); cx.moveTo(x,y+14); cx.lineTo(x,y); cx.stroke();
+  cx.fillStyle = T.night ? "#8a7fae" : "#f7f0f5"; for(let k=0;k<5;k++){ const a=k/5*Math.PI*2; cx.beginPath(); cx.arc(x+Math.cos(a)*4, y+Math.sin(a)*4, 3.2, 0, 7); cx.fill(); }
+  cx.fillStyle="#f2c14b"; cx.beginPath(); cx.arc(x,y,2.4,0,7); cx.fill();
+}
+
+function particles(dt){
+  // dym podľa rýchlosti
+  const spd = G.v/300;
+  G._smk = (G._smk||0) + dt*(1.5 + spd*14);
+  while(G._smk >= 1){ G._smk -= 1;
+    G.smoke.push({x:G.d-32+Math.random()*6, y:-142, r:7+Math.random()*4, vx:-8+Math.random()*10, vy:-(26+spd*28+Math.random()*12), life:0, max:2+Math.random()*1.4}); }
+  for(const p of G.smoke){ p.life+=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.r += dt*(10+p.life*6); p.vy*=0.995; }
+  G.smoke = G.smoke.filter(p=>p.life<p.max);
+  for(const b of G.bugs){ b.life+=dt; b.x+=b.vx*dt; b.y+=b.vy*dt; b.vy += 40*dt; }
+  G.bugs = G.bugs.filter(b=>b.life<b.max);
+  for(const s of G.sparks){ s.life+=dt; s.x+=s.vx*dt; s.y+=s.vy*dt; s.vy+=60*dt; }
+  G.sparks = G.sparks.filter(s=>s.life<s.max);
+}
+
+/* manometer = tempo šúchania */
+const mc = $("mano").getContext("2d");
+function drawMano(){
+  const c = mc, w=172, r=76, x=86, y=90;
+  c.clearRect(0,0,w,w);
+  c.fillStyle="#f4ecd8"; c.beginPath(); c.arc(x,y,r,0,7); c.fill();
+  c.strokeStyle="#d9a441"; c.lineWidth=7; c.stroke();
+  const a0 = Math.PI*0.8, a1 = Math.PI*2.2, max = 300;
+  const ang = v => a0 + (a1-a0)*Math.min(1,v/max);
+  const arc=(v0,v1,col)=>{ c.strokeStyle=col; c.lineWidth=12; c.beginPath(); c.arc(x,y,r-16,ang(v0),ang(v1)); c.stroke(); };
+  arc(0,70,"#9db6d6"); arc(70,210,"#3fae6a"); arc(210,300,"#e4572e");
+  c.strokeStyle="#2a2118"; c.lineWidth=2;
+  for(let v=0; v<=max; v+=30){ const a=ang(v); c.beginPath(); c.moveTo(x+Math.cos(a)*(r-26),y+Math.sin(a)*(r-26)); c.lineTo(x+Math.cos(a)*(r-34),y+Math.sin(a)*(r-34)); c.stroke(); }
+  c.fillStyle="#2a2118"; c.font="800 17px 'Baloo 2',sans-serif"; c.textAlign="center"; c.textBaseline="middle";
+  const lab = G.rate < 40 ? "STOJÍ" : G.rate < 70 ? "POMALY" : G.rate > 210 ? "JEMNEJŠIE" : "PARÁDA";
+  c.fillText(lab, x, y+38);
+  c.font="800 11px Nunito,sans-serif"; c.fillStyle="#6d5d47"; c.fillText("TEMPO", x, y+20);
+  const a = ang(G.rate) + Math.sin(G.t*30)*0.01*(G.rate>40);
+  c.strokeStyle="#b2271a"; c.lineWidth=4; c.lineCap="round"; c.beginPath(); c.moveTo(x,y); c.lineTo(x+Math.cos(a)*(r-20), y+Math.sin(a)*(r-20)); c.stroke();
+  c.fillStyle="#2a2118"; c.beginPath(); c.arc(x,y,7,0,7); c.fill();
+}
+
+/* ================= Hlavná slučka ================= */
+let lastT = performance.now();
+function loop(now){
+  const dt = Math.min(0.05, (now-lastT)/1000); lastT = now;
+  if(!$("game").hidden){ step(now, dt); if(!G.paused) particles(dt); draw(); drawMano(); }
+  else { Mic.tick(now, dt); if(testOn) drawTest(); }
+  if(!$("finish").hidden) confettiStep(dt);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ================= Obrazovky ================= */
+function show(id, overlay){
+  ["menu","settings","finish"].forEach(s=> $(s).hidden = s!==id);
+  if(!overlay) $("game").hidden = id!=="game";
+  if(id==="menu") renderMenu();
+  if(id==="settings") renderSettings();
+}
+function renderMenu(){
+  const part = partNow();
+  $("partChip").textContent = part==="rano" ? "Ranný spoj · východ slnka" : "Večerný spoj · pod hviezdami";
+  const box = $("tickets"); box.innerHTML="";
+  const days = []; for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days.push(d); }
+  const dn = ["Ne","Po","Ut","St","Št","Pi","So"];
+  S.profiles.forEach(p=>{
+    const hist = S.history.filter(h=>h.p===p.id);
+    const b = document.createElement("button"); b.className="ticket"; b.style.setProperty("--kid", p.color);
+    const modeTxt = p.mode==="mic" ? `Mikrofón · ${p.target} šúchnutí na úsek` : p.mode==="electric" ? "Elektrická kefka · 4 × 30 s" : "Podľa času · 4 × 30 s";
+    const week = days.map(d=>{ const k=dayKey(d); const r=hist.some(h=>h.day===k&&h.part==="rano"), v=hist.some(h=>h.day===k&&h.part==="vecer");
+      return `<span class="day"><i class="${r?'r':''} ${v?'v':''}"></i>${dn[d.getDay()]}</span>`; }).join("");
+    const doneNow = hist.some(h=>h.day===dayKey(new Date()) && h.part===part);
+    b.innerHTML = `<div class="paper"><div class="main"><div class="kind">Cestovný lístok · ${part==="rano"?"ranný":"večerný"} spoj</div>
+      <div class="name"></div><div class="route">Kefkovo → Čisté Zúbkovo · ${modeTxt}</div><div class="week" aria-label="Posledných 7 dní, ľavá polovica ráno, pravá večer">${week}</div></div>
+      <div class="stub"><b>${hist.length}</b><small>lístkov</small><span class="go">${doneNow?"Znova":"Nastúpiť"}</span></div></div>`;
+    b.querySelector(".name").textContent = p.name;
+    b.addEventListener("click", ()=> startGame(p));
+    box.appendChild(b);
+  });
+}
+
+/* ================= Nastavenia ================= */
+let testOn=false, testCount=0, testFlash=0;
+function renderSettings(){
+  $("sens").value = S.sens; $("sensV").textContent = S.sens + " / 10";
+  $("sndOn").checked = !!S.sound;
+  const list = $("profList"); list.innerHTML="";
+  S.profiles.forEach((p,idx)=>{
+    const d = document.createElement("div"); d.className="prof"; d.style.setProperty("--kid",p.color);
+    d.innerHTML = `
+      <label class="f">Meno <input type="text" id="pn${idx}" maxlength="14"></label>
+      <label class="f">Režim
+        <select id="pm${idx}"><option value="mic">Mikrofón – šúchanie</option><option value="electric">Elektrická kefka</option><option value="timer">Len čas (umýva rodič)</option></select>
+        <span class="swatches" id="pc${idx}"></span></label>
+      <label class="f">Šúchnutí na úsek <span class="rangev" id="ptv${idx}"></span><input type="range" id="pt${idx}" min="20" max="100" step="5"></label>`;
+    list.appendChild(d);
+    const n=$("pn"+idx), m=$("pm"+idx), t=$("pt"+idx), tv=$("ptv"+idx), sw=$("pc"+idx);
+    n.value=p.name; m.value=p.mode; t.value=p.target;
+    const upd=()=>{ tv.textContent = p.target + " (spolu " + p.target*4 + ")"; t.disabled = p.mode!=="mic"; t.style.opacity = p.mode==="mic"?1:.4; };
+    upd();
+    n.addEventListener("input",()=>{ p.name = n.value.trim() || "Cestujúci"; save(); });
+    m.addEventListener("change",()=>{ p.mode=m.value; save(); upd(); });
+    t.addEventListener("input",()=>{ p.target=+t.value; save(); upd(); });
+    COLORS.forEach(c=>{ const s=document.createElement("button"); s.type="button"; s.style.background=c; s.setAttribute("aria-label","Farba"); s.setAttribute("aria-pressed", String(c===p.color));
+      s.addEventListener("click",()=>{ p.color=c; save(); renderSettings(); }); sw.appendChild(s); });
+  });
+}
+$("sens").addEventListener("input", e=>{ S.sens=+e.target.value; $("sensV").textContent=S.sens+" / 10"; save(); });
+$("sndOn").addEventListener("change", e=>{ S.sound=e.target.checked; save(); });
+$("testBtn").addEventListener("click", async ()=>{
+  if(testOn){ testOn=false; $("testBtn").textContent="Zapnúť test"; return; }
+  const ok = await Mic.start();
+  if(!ok){ $("testBtn").textContent="Mikrofón nedostupný"; return; }
+  testOn=true; testCount=0; $("tCount").textContent="0"; $("testBtn").textContent="Vypnúť test";
+});
+const prevStroke = Mic.onStroke;
+Mic.onStroke = (synth)=>{ if(testOn && $("game").hidden){ testCount++; $("tCount").textContent = testCount; testFlash = performance.now(); return; } prevStroke(synth); };
+function drawTest(){
+  const maxDb = 24, T = 10*Math.log10(Mic.thr());
+  $("tMeter").style.width = Math.max(0,Math.min(100, Mic.db/maxDb*100))+"%";
+  $("tThr").style.left = Math.min(100, T/maxDb*100)+"%";
+  $("tCount").classList.toggle("flash", performance.now()-testFlash < 160);
+}
+$("clrBtn").addEventListener("click",()=>{ $("clrBtn").hidden=true; $("clrYes").hidden=false; $("clrNo").hidden=false; $("clrMsg").textContent="Zmažú sa všetky lístky všetkých detí."; });
+$("clrNo").addEventListener("click",()=>{ $("clrBtn").hidden=false; $("clrYes").hidden=true; $("clrNo").hidden=true; $("clrMsg").textContent=""; });
+$("clrYes").addEventListener("click",()=>{ S.history=[]; save(); $("clrNo").click(); $("clrMsg").textContent="História je prázdna."; });
+
+$("openSettings").addEventListener("click",()=>show("settings"));
+$("closeSettings").addEventListener("click",()=>{ testOn=false; $("testBtn").textContent="Zapnúť test"; show("menu"); });
+
+/* ================= Ovládanie hry ================= */
+function updMute(){ $("muteWave").style.display = S.sound ? "" : "none"; }
+$("muteBtn").addEventListener("click",()=>{ S.sound=!S.sound; save(); updMute(); });
+$("pauseBtn").addEventListener("click",()=>{ if(!G.run) return; G.paused=true; $("pauseOv").hidden=false; });
+$("resumeBtn").addEventListener("click",()=>{ G.paused=false; $("pauseOv").hidden=true; G.lastStrokeT=performance.now(); });
+$("quitBtn").addEventListener("click",()=>{ G.run=false; G.paused=false; $("pauseOv").hidden=true; try{G.lock&&G.lock.release();}catch(e){} show("menu"); });
+$("againBtn").addEventListener("click",()=>{ confettiStop(); show("menu"); });
+$("homeBtn").addEventListener("click",()=>{ confettiStop(); show("menu"); });
+// medzerník = jedno šúchnutie (na skúšku bez mikrofónu)
+window.addEventListener("keydown", e=>{ if(e.code==="Space" && !$("game").hidden && G.run && !G.paused && G.state!=="ready"){ e.preventDefault(); if(G.prof.mode==="mic") addStroke(false); } });
+document.addEventListener("visibilitychange",()=>{ if(document.hidden && G.run && !G.paused){ G.paused=true; $("pauseOv").hidden=false; } });
+
+/* ================= Konfety ================= */
+const cf = $("confetti"), cfx = cf.getContext("2d"); let conf=[], confOn=false;
+function confettiStart(){
+  cf.width = innerWidth*DPR; cf.height = innerHeight*DPR; confOn=true;
+  const cols=["#e4572e","#f2d24b","#3fae6a","#2f6fdb","#d6407f","#ffffff"];
+  conf = Array.from({length:160},()=>({x:Math.random()*innerWidth, y:-Math.random()*innerHeight*0.6, vx:Math.random()*60-30, vy:80+Math.random()*120, r:Math.random()*6, w:6+Math.random()*6, h:8+Math.random()*8, c:cols[Math.random()*6|0], s:Math.random()*8-4}));
+}
+function confettiStop(){ confOn=false; conf=[]; cfx.clearRect(0,0,cf.width,cf.height); }
+function confettiStep(dt){
+  if(!confOn) return;
+  cfx.setTransform(DPR,0,0,DPR,0,0); cfx.clearRect(0,0,innerWidth,innerHeight);
+  for(const p of conf){ p.x+=p.vx*dt; p.y+=p.vy*dt; p.r+=p.s*dt; if(p.y>innerHeight+20){ p.y=-20; p.x=Math.random()*innerWidth; }
+    cfx.save(); cfx.translate(p.x,p.y); cfx.rotate(p.r); cfx.fillStyle=p.c; cfx.fillRect(-p.w/2,-p.h/2*Math.abs(Math.cos(p.r*2)),p.w,p.h*Math.abs(Math.cos(p.r*2))+1); cfx.restore(); }
+}
+
+/* ================= Logo v menu ================= */
+(function logo(){
+  const c = $("logo").getContext("2d"); c.scale(2,2);
+  c.fillStyle="#f6e7c8"; c.fillRect(0,54,120,3);
+  c.fillStyle="#e4572e"; c.beginPath(); c.roundRect ? c.roundRect(34,22,52,26,6) : c.rect(34,22,52,26); c.fill();
+  c.fillStyle="#1b1b1f"; c.fillRect(84,10,26,40); c.fillRect(80,6,34,6);
+  c.fillStyle="#d8ecf6"; c.fillRect(89,16,16,13);
+  c.fillStyle="#26262c"; c.fillRect(42,8,10,16); c.fillRect(39,5,16,4);
+  c.fillStyle="#d9b25a"; c.fillRect(48,22,3,26); c.fillRect(64,22,3,26);
+  c.fillStyle="#fff"; c.beginPath(); c.moveTo(14,26); c.quadraticCurveTo(14,18,20,18); c.quadraticCurveTo(24,21,28,18); c.quadraticCurveTo(34,18,34,26); c.quadraticCurveTo(33,38,29,46); c.lineTo(26,46); c.lineTo(24,38); c.lineTo(22,46); c.lineTo(19,46); c.quadraticCurveTo(15,38,14,26); c.fill();
+  c.fillStyle="#1b1b1f"; [[46,50,7],[70,50,7],[96,50,6]].forEach(w=>{ c.beginPath(); c.arc(w[0],w[1],w[2],0,7); c.fill(); });
+  c.fillStyle="rgba(255,255,255,.5)"; [[30,0,5],[22,-4,7],[12,-2,6]].forEach(s=>{ c.beginPath(); c.arc(47-s[0]*0.2+s[1],4+s[1],s[2],0,7); c.fill(); });
+})();
+
+show("menu");
+</script>
+</body>
+</html>
