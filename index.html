@@ -278,7 +278,7 @@ input[type=range]{width:100%;accent-color:var(--brass)}
 
     <div class="panel">
       <h3>Cestujúci</h3>
-      <p class="why">Každý má vlastný vláčik vo svojej farbe. Počet šúchnutí na úsek určuje dĺžku jazdy: pri bežnom tempe asi 2 šúchnutia za sekundu je 60 na úsek zhruba pol minúty, teda 2 minuty spolu, čo odporúčajú zubári. „Len čas" je pre malých, ktorým zúbky umýva rodič: vláčik ide sám 30 sekúnd na úsek. „Elektrická kefka" bzučí rovnomerne a nemá jednotlivé šúchnutia, preto vláčik ide, kým počuje bzučanie.</p>
+      <p class="why">Každý má vlastný vláčik vo svojej farbe. Počet šúchnutí na úsek určuje dĺžku jazdy: pri bežnom tempe asi 2 šúchnutia za sekundu je 60 na úsek zhruba pol minúty, teda 2 minuty spolu, čo odporúčajú zubári. „Len čas" je pre malých, ktorým zúbky umýva rodič: vláčik ide sám 45 sekúnd na úsek, teda 3 minúty spolu. Ak mikrofón nefunguje alebo ho prehliadač nepovolí, vláčik ide tiež podľa času, 45 sekúnd na úsek. „Elektrická kefka" bzučí rovnomerne a nemá jednotlivé šúchnutia, preto vláčik ide, kým počuje bzučanie.</p>
       <div id="profList" style="display:flex;flex-direction:column;gap:12px"></div>
     </div>
 
@@ -432,6 +432,7 @@ const ZONES = [
 ];
 const START_ST = "Kefkovo";
 const L = 1500;                   // dĺžka úseku vo svetových jednotkách
+const TIME_ZONE = 45;              // sekúnd na úsek v režime „Len čas“ a keď mikrofón nejde
 
 /* ================= Hra ================= */
 const G = {
@@ -515,7 +516,7 @@ function step(now, dt){
   if(!G.paused && G.state==="run"){
     if(mode==="mic") G.frac = Math.min(1, G.zoneStrokes / G.prof.target);
     else if(mode==="electric"){ if(Mic.active){ G.frac = Math.min(1, G.frac + dt/30); if(Math.random()<dt*3) spawnBug(); } }
-    else { G.frac = Math.min(1, G.frac + dt/30); if(Math.random()<dt*1.5) spawnBug(); }
+    else { G.frac = Math.min(1, G.frac + dt/TIME_ZONE); if(Math.random()<dt*1.5) spawnBug(); }
   }
   // cieľová poloha a plynulý pohyb vláčika
   const goal = (G.zone + G.frac) * L;
@@ -545,7 +546,7 @@ function step(now, dt){
   }
 
   // HUD
-  $("cnt").textContent = mode==="mic" ? G.zoneStrokes : Math.max(0, Math.ceil(30*(1-G.frac)));
+  $("cnt").textContent = mode==="mic" ? G.zoneStrokes : Math.max(0, Math.ceil((mode==="electric"?30:TIME_ZONE)*(1-G.frac)));
   const tot = G.d/(4*L);
   $("routeFill").style.width = `calc((100% - 16px) * ${tot})`;
   $("mk").style.left = `calc(8px + (100% - 16px) * ${tot})`;
@@ -1001,11 +1002,13 @@ function drawMano(){
 /* ================= Hlavná slučka ================= */
 let lastT = performance.now();
 function loop(now){
-  const dt = Math.min(0.05, (now-lastT)/1000); lastT = now;
-  if(!$("game").hidden){ step(now, dt); if(!G.paused) particles(dt); draw(); drawMano(); }
-  else { Mic.tick(now, dt); if(testOn) drawTest(); }
-  if(!$("finish").hidden) confettiStep(dt);
   requestAnimationFrame(loop);
+  const dt = Math.min(0.05, (now-lastT)/1000); lastT = now;
+  try{
+    if(!$("game").hidden){ step(now, dt); if(!G.paused) particles(dt); draw(); drawMano(); }
+    else { Mic.tick(now, dt); if(testOn) drawTest(); }
+    if(!$("finish").hidden) confettiStep(dt);
+  }catch(e){ if(!loop.err){ loop.err = true; console.error("slučka", e); } }
 }
 requestAnimationFrame(loop);
 
@@ -1025,7 +1028,7 @@ function renderMenu(){
   S.profiles.forEach(p=>{
     const hist = S.history.filter(h=>h.p===p.id);
     const b = document.createElement("button"); b.className="ticket"; b.style.setProperty("--kid", p.color);
-    const modeTxt = p.mode==="mic" ? `Mikrofón · ${p.target} šúchnutí na úsek` : p.mode==="electric" ? "Elektrická kefka · 4 × 30 s" : "Podľa času · 4 × 30 s";
+    const modeTxt = p.mode==="mic" ? `Mikrofón · ${p.target} šúchnutí na úsek` : p.mode==="electric" ? "Elektrická kefka · 4 × 30 s" : `Podľa času · 4 × ${TIME_ZONE} s`;
     const week = days.map(d=>{ const k=dayKey(d); const r=hist.some(h=>h.day===k&&h.part==="rano"), v=hist.some(h=>h.day===k&&h.part==="vecer");
       return `<span class="day"><i class="${r?'r':''} ${v?'v':''}"></i>${dn[d.getDay()]}</span>`; }).join("");
     const doneNow = hist.some(h=>h.day===dayKey(new Date()) && h.part===part);
